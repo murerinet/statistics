@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LME 直感デモ</title>
+
+<style>
+    :root{
+        --bg:#0f172a;
+        --panel:#111827cc;
+        --glass:rgba(255,255,255,0.06);
+        --text:#f8fafc;
+        --muted:#94a3b8;
+        --accent:#38bdf8;
+        --accent2:#a78bfa;
+        --danger:#fb7185;
+        --line:#334155;
+    }
+
+    *{
+        box-sizing:border-box;
+    }
+
+    body{
+        margin:0;
+        font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+        background:
+            radial-gradient(circle at top left,#1e293b 0%,#0f172a 40%),
+            radial-gradient(circle at bottom right,#312e81 0%,#0f172a 40%);
+        color:var(--text);
+        min-height:100vh;
+    }
+
+    .container{
+        max-width:1300px;
+        margin:auto;
+        padding:32px;
+    }
+
+    h1{
+        font-size:clamp(2rem,4vw,3.2rem);
+        margin-bottom:8px;
+        letter-spacing:-1px;
+    }
+
+    .subtitle{
+        color:var(--muted);
+        font-size:1.05rem;
+        margin-bottom:32px;
+        line-height:1.7;
+    }
+
+    .layout{
+        display:grid;
+        grid-template-columns:360px 1fr;
+        gap:24px;
+    }
+
+    .panel{
+        background:var(--panel);
+        backdrop-filter:blur(16px);
+        border:1px solid rgba(255,255,255,0.08);
+        border-radius:24px;
+        padding:24px;
+        box-shadow:0 20px 40px rgba(0,0,0,0.35);
+    }
+
+    .controls h2,
+    .explain h2{
+        margin-top:0;
+        font-size:1.2rem;
+    }
+
+    .control{
+        margin-bottom:28px;
+    }
+
+    label{
+        display:flex;
+        justify-content:space-between;
+        margin-bottom:10px;
+        font-size:0.95rem;
+    }
+
+    .value{
+        color:var(--accent);
+        font-weight:700;
+    }
+
+    input[type=range]{
+        width:100%;
+        accent-color:var(--accent);
+    }
+
+    .chartWrap{
+        position:relative;
+        background:rgba(255,255,255,0.03);
+        border-radius:20px;
+        overflow:hidden;
+        border:1px solid rgba(255,255,255,0.06);
+    }
+
+    canvas{
+        width:100%;
+        height:560px;
+        display:block;
+    }
+
+    .legend{
+        display:flex;
+        gap:16px;
+        flex-wrap:wrap;
+        margin-top:16px;
+        color:var(--muted);
+        font-size:0.9rem;
+    }
+
+    .legendItem{
+        display:flex;
+        align-items:center;
+        gap:8px;
+    }
+
+    .dot{
+        width:14px;
+        height:14px;
+        border-radius:50%;
+    }
+
+    .explain{
+        margin-top:24px;
+        line-height:1.9;
+        color:#e2e8f0;
+    }
+
+    .card{
+        background:var(--glass);
+        border-radius:18px;
+        padding:18px;
+        margin-top:16px;
+        border:1px solid rgba(255,255,255,0.05);
+    }
+
+    .highlight{
+        color:var(--accent);
+        font-weight:700;
+    }
+
+    .formula{
+        background:#020617;
+        padding:14px;
+        border-radius:12px;
+        font-family:ui-monospace,monospace;
+        margin-top:14px;
+        overflow:auto;
+        color:#cbd5e1;
+    }
+
+    @media(max-width:950px){
+        .layout{
+            grid-template-columns:1fr;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>線形混合効果モデル（LME）を直感で理解する</h1>
+
+    <div class="subtitle">
+        「個人差を無視すると何が起きるのか？」を、動くグラフで体感できます。<br>
+        青い線＝全体傾向（固定効果）、紫の線＝グループごとの差（ランダム効果）。
+    </div>
+
+    <div class="layout">
+
+        <div class="panel controls">
+
+            <h2>⚙ パラメータ</h2>
+
+            <div class="control">
+                <label>
+                    全体の傾き（固定効果）
+                    <span class="value" id="slopeVal">1.0</span>
+                </label>
+                <input type="range" min="-2" max="2" step="0.1" value="1" id="slope">
+            </div>
+
+            <div class="control">
+                <label>
+                    グループ差の大きさ（ランダム効果）
+                    <span class="value" id="groupVal">40</span>
+                </label>
+                <input type="range" min="0" max="100" step="1" value="40" id="group">
+            </div>
+
+            <div class="control">
+                <label>
+                    ノイズの大きさ
+                    <span class="value" id="noiseVal">20</span>
+                </label>
+                <input type="range" min="0" max="80" step="1" value="20" id="noise">
+            </div>
+
+            <div class="control">
+                <label>
+                    グループ数
+                    <span class="value" id="groupsVal">4</span>
+                </label>
+                <input type="range" min="2" max="8" step="1" value="4" id="groups">
+            </div>
+
+            <button id="regen"
+            style="
+                width:100%;
+                padding:14px;
+                border:none;
+                border-radius:14px;
+                background:linear-gradient(135deg,var(--accent),var(--accent2));
+                color:white;
+                font-size:1rem;
+                font-weight:700;
+                cursor:pointer;
+            ">
+                データを再生成
+            </button>
+
+            <div class="card">
+                <strong>見るポイント</strong><br><br>
+
+                ● 固定効果：<br>
+                「全体として」どんな傾向があるか。<br><br>
+
+                ● ランダム効果：<br>
+                「グループごと」にどれだけズレるか。<br><br>
+
+                LMEはこの両方を同時に扱えるモデルです。
+            </div>
+
+        </div>
+
+        <div class="panel">
+
+            <div class="chartWrap">
+                <canvas id="chart"></canvas>
+            </div>
+
+            <div class="legend">
+                <div class="legendItem">
+                    <div class="dot" style="background:#38bdf8"></div>
+                    固定効果（全体平均）
+                </div>
+
+                <div class="legendItem">
+                    <div class="dot" style="background:#a78bfa"></div>
+                    グループ別の傾向
+                </div>
+
+                <div class="legendItem">
+                    <div class="dot" style="background:#ffffff"></div>
+                    観測データ
+                </div>
+            </div>
+
+            <div class="explain">
+
+                <h2>💡 直感的に言うと</h2>
+
+                <div class="card">
+                    普通の回帰モデルは、<br>
+                    「全員が同じ傾向を持つ」と考えます。
+                </div>
+
+                <div class="card">
+                    でも実際には、<br>
+                    学習者・学校・実験参加者などで
+                    ベースラインが違います。
+                </div>
+
+                <div class="card">
+                    LMEでは：
+                    <br><br>
+
+                    <span class="highlight">固定効果</span>
+                    ＝ 全体共通の傾向
+                    <br><br>
+
+                    <span class="highlight">ランダム効果</span>
+                    ＝ グループごとの差
+                </div>
+
+                <div class="formula">
+                    観測値 = 全体傾向 + グループ差 + ノイズ
+                </div>
+
+                <div class="card">
+                    たとえば第二言語習得研究なら：
+                    <br><br>
+
+                    ・固定効果：文法条件の効果<br>
+                    ・ランダム効果：参加者ごとの差<br>
+                    ・ランダム効果：項目ごとの差
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+const canvas = document.getElementById("chart");
+const ctx = canvas.getContext("2d");
+
+function resize(){
+    canvas.width = canvas.clientWidth * devicePixelRatio;
+    canvas.height = canvas.clientHeight * devicePixelRatio;
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+    draw();
+}
+
+window.addEventListener("resize", () => {
+    location.reload();
+});
+
+const controls = {
+    slope: document.getElementById("slope"),
+    group: document.getElementById("group"),
+    noise: document.getElementById("noise"),
+    groups: document.getElementById("groups")
+};
+
+const labels = {
+    slope: document.getElementById("slopeVal"),
+    group: document.getElementById("groupVal"),
+    noise: document.getElementById("noiseVal"),
+    groups: document.getElementById("groupsVal")
+};
+
+Object.keys(controls).forEach(key=>{
+    controls[key].addEventListener("input", ()=>{
+        labels[key].textContent = controls[key].value;
+        draw();
+    });
+});
+
+document.getElementById("regen").addEventListener("click", draw);
+
+function randn(){
+    let u = 0, v = 0;
+    while(u===0) u = Math.random();
+    while(v===0) v = Math.random();
+    return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+
+function draw(){
+
+    const W = canvas.clientWidth;
+    const H = canvas.clientHeight;
+
+    ctx.clearRect(0,0,W,H);
+
+    const margin = 60;
+
+    const slope = parseFloat(controls.slope.value);
+    const groupSpread = parseFloat(controls.group.value);
+    const noise = parseFloat(controls.noise.value);
+    const nGroups = parseInt(controls.groups.value);
+
+    // background grid
+    ctx.strokeStyle = "rgba(255,255,255,0.05)";
+    ctx.lineWidth = 1;
+
+    for(let i=0;i<10;i++){
+        const y = margin + (H-2*margin)*i/9;
+        ctx.beginPath();
+        ctx.moveTo(margin,y);
+        ctx.lineTo(W-margin,y);
+        ctx.stroke();
+    }
+
+    for(let i=0;i<10;i++){
+        const x = margin + (W-2*margin)*i/9;
+        ctx.beginPath();
+        ctx.moveTo(x,margin);
+        ctx.lineTo(x,H-margin);
+        ctx.stroke();
+    }
+
+    // axis
+    ctx.strokeStyle = "#94a3b8";
+    ctx.lineWidth = 2;
+
+    ctx.beginPath();
+    ctx.moveTo(margin,H-margin);
+    ctx.lineTo(W-margin,H-margin);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(margin,H-margin);
+    ctx.lineTo(margin,margin);
+    ctx.stroke();
+
+    const colors = [
+        "#c084fc",
+        "#818cf8",
+        "#f472b6",
+        "#22d3ee",
+        "#facc15",
+        "#fb7185",
+        "#34d399",
+        "#60a5fa"
+    ];
+
+    // fixed effect line
+    ctx.strokeStyle = "#38bdf8";
+    ctx.lineWidth = 5;
+
+    const y1 = H-margin - ((0*slope)+50)*3;
+    const y2 = H-margin - ((100*slope)+50)*3;
+
+    ctx.beginPath();
+    ctx.moveTo(margin,y1);
+    ctx.lineTo(W-margin,y2);
+    ctx.stroke();
+
+    for(let g=0; g<nGroups; g++){
+
+        const interceptShift = randn() * groupSpread;
+
+        const c = colors[g % colors.length];
+
+        // random effect line
+        ctx.strokeStyle = c;
+        ctx.lineWidth = 2.5;
+
+        const gy1 = H-margin - (((0*slope)+50+interceptShift)*3);
+        const gy2 = H-margin - (((100*slope)+50+interceptShift)*3);
+
+        ctx.beginPath();
+        ctx.moveTo(margin,gy1);
+        ctx.lineTo(W-margin,gy2);
+        ctx.stroke();
+
+        // points
+        for(let i=0;i<25;i++){
+
+            const x = Math.random()*100;
+
+            const trueY =
+                slope*x + 50 + interceptShift;
+
+            const observed =
+                trueY + randn()*noise;
+
+            const px =
+                margin + (x/100)*(W-2*margin);
+
+            const py =
+                H-margin - observed*3;
+
+            ctx.beginPath();
+            ctx.fillStyle = "rgba(255,255,255,0.85)";
+            ctx.arc(px,py,4,0,Math.PI*2);
+            ctx.fill();
+        }
+    }
+
+    // axis labels
+    ctx.fillStyle = "#cbd5e1";
+    ctx.font = "14px sans-serif";
+
+    ctx.fillText("説明変数 X", W/2, H-18);
+
+    ctx.save();
+    ctx.translate(20,H/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText("目的変数 Y",0,0);
+    ctx.restore();
+
+}
+
+resize();
+
+</script>
+
+</body>
+</html>
